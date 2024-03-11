@@ -11,7 +11,10 @@ data = {...data,
     promises: [],
     object_ids: {
         Auftrag_formular: 7,
+        Auftragsmakro_Auftragspositionen_Liste: 13,
         Auftragbestellposliste_liste: 75,
+        Anforderungen_tab_Datenquelle: 174,
+        Auftragsposition_formular: 16,
         Fertigungsauftrag_formular: 328,
         Passport_formular: 51,
         Passportposition_Datenquelle: 365,
@@ -20,6 +23,10 @@ data = {...data,
         Sonderschritte_Datenquelle: 767,
         Auftragsposition_grp_Datenquelle: 239,
         LS_RE_Check: 798,
+        Kunden_DB: 921,
+        LieferscheinERP_Formular: 25,
+        Lieferposition_Datenquelle: 360,
+        Laufzettel_Formular: 26,
     }
 };
 
@@ -241,14 +248,14 @@ if (data.Lz_ID > 0) {
         fields: ['Count(Eintrag) as count_Eintrag'],
         conditions: [`Eintrag = ${data.Lz_ID}`, 'Einzelpreis > 0', 'Gruppe_ID <> 26', 'Gebucht = 0']
     };
-    data.commands.prom_cond_ok = await dbAction('select', data.args.countEintrag_Auftragsposition);
+    data.commands.countEintrag_Auftragsposition = await dbAction('select', data.args.countEintrag_Auftragsposition);
     // ist die Auslieferungsposition und die Versandanschrift geprüft?
     data.args.select_RE_Check = {
         object_id: data.object_ids.LS_RE_Check,
         fields: ['Re_check'],
         conditions: [`Eintrag = ${data.Lz_ID}`]
     };
-    const prom_cond_check = await dbAction(data.args.select_RE_Check);
+    data.commands.select_RE_Check = await dbAction(data.args.select_RE_Check);
 
     // gibt es in der Auslieferungsposition Programmier-Schritte -> Prog > 0
     data.args.count_Arbeitsschritt = {
@@ -259,52 +266,46 @@ if (data.Lz_ID > 0) {
 
     data.commands.count_Arbeitsschritt = await dbAction('select', data.args.count_Arbeitsschritt);
     // gibt es weitere Auftragspositionen
-    args = {
-        object_id: 239,
-        field_name: 'Count(Eintrag)',
-        condition: {
-            Auftrag_ID: data.Auftrag_ID
-        },
-        condition_text: '(Gruppe_ID = 3 Or Gruppe_ID = 4 Or Gruppe_ID = 6 Or Gruppe_ID = 8 Or Gruppe_ID = 25) And Gebucht = 0 And Eintrag <> ' + data.Lz_ID
+    data.args.Count_Auftragspos = {
+        object_id: data.object_ids.Auftragsposition_grp_Datenquelle,
+        fields: ['Count(Eintrag) as count_Eintrag'],
+        conditions: [` Auftrag_ID: = ${data.Auftrag_ID}`, `Gebucht = 0`, `Eintrag != ${data.Lz_ID}`, `Gruppe_ID = 3 Or Gruppe_ID = 4 Or Gruppe_ID = 6 Or Gruppe_ID = 8 Or Gruppe_ID = 25`]
+        //condition_text: '(Gruppe_ID = 3 Or Gruppe_ID = 4 Or Gruppe_ID = 6 Or Gruppe_ID = 8 Or Gruppe_ID = 25) And Gebucht = 0 And Eintrag <> ' + data.Lz_ID
     };
-    const prom_cond_auto = promisedDLookup(args);
-    const [look_cond_ok, look_cond_check, look_cond_prog, look_cond_auto] = await Promise.all([prom_cond_ok, prom_cond_check, prom_cond_prog, prom_cond_auto]); // jshint ignore:line
-    data.Start_cond = parseInt(look_cond_ok.DATA);
-    if (parseInt(look_cond_prog.DATA) === 0 && data.Prog == 1) {
+    data.commands.Count_Auftragspos = await dbAction('select', data.args.Count_Auftragspos);
+   /*  const [look_cond_ok, look_cond_check, look_cond_prog, look_cond_auto] = await Promise.all([data.commands.countEintrag_Auftragsposition, data.commands.select_RE_Check,
+        data.commands.count_Arbeitsschritt, data.commands.Count_Auftragspos]); // jshint ignore:line */
+    data.Start_cond = parseInt(data.commands.countEintrag_Auftragsposition.DATA);
+    if (parseInt(data.commands.Count_Auftragspos.DATA) === 0 && data.Prog == 1) {
         data.Start_cond = 0;
     }
-    if (parseInt(look_cond_auto.DATA) > 0) {
+    if (parseInt(data.commands.Count_Auftragspos.DATA) > 0) {
         data.Autom = 0;
     }
     if (data.Start_cond === 0 && data.Prog === 0 && data.Autom === 0) {
         data.Start_cond = 1;
     }
     // Warnung wegen ungeprüftem Preis und Versandanschrift
-    if (parseInt(look_cond_check.DATA) === 0) {
+    if (parseInt(data.commands.select_RE_Check.DATA) === 0) {
         toast('Hinweis: Der Preis und/oder die Versandanschrift wurden noch nicht geprüft!!!', 'warning');
     }
 } else {
-    if (!data.hasOwnProperty("Auftrag_ID")) {
-        data.Auftrag_ID = $('.form').find("input[name=\'Eintrag\']").val();
-    }
+    data.Auftrag_ID = $('.form').find("input[name=\'Eintrag\']").val();
     data.Start_cond = 1;
     data.Prog = 0;
     data.Autom = 0;
 
     // Versuche eindeutigen offenen FA zu erkennen
-    args = {
-        object_id: 328,
-        field_name: 'Count(Eintrag)',
-        condition: {
-            Auftrag_ID: data.Auftrag_ID,
-            Gebucht: 0,
-            Bearbeitet: 1
-        }
+    data.args.CountEintrag_Fertigungsauftrag = {
+        object_id: data.object_ids.Fertigungsauftrag_formular,
+        fields: ['Count(Eintrag) as countEintrag_Fertigungsauftrag_formular'],
+        conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, `Bearbeitet = 1`]
     };
-    const prom_anz_fag = promisedDLookup(args);
-    let anz_fag = await prom_anz_fag; // jshint ignore:line
-    if (parseInt(anz_fag.DATA) === 1) {
-        let find_fag = await promisedOpenRecordset({ // jshint ignore:line
+    data.commands.CountEintrag_Fertigungsauftrag = await dbAction('select', data.args.CountEintrag_Fertigungsauftrag);
+    /* const prom_anz_fag = promisedDLookup(args);
+    let anz_fag = await prom_anz_fag; // jshint ignore:line */
+    if (parseInt(data.commands.CountEintrag_Fertigungsauftrag.DATA) === 1) {
+        /* let find_fag = await promisedOpenRecordset({ // jshint ignore:line
             object_id: 328,
             field_name: ['Eintrag', 'Anzahl', 'Gruppe_ID'],
             condition: {
@@ -312,6 +313,12 @@ if (data.Lz_ID > 0) {
                 Gebucht: 0,
                 Bearbeitet: 1
             },
+            order_by: 'Eintrag'
+        }); */
+        let find_fag = await dbAction('select', { // jshint ignore:line
+            object_id: data.object_ids.Fertigungsauftrag_formular,
+            fields: ['Eintrag', 'Anzahl', 'Gruppe_ID'],
+            conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, `Bearbeitet = 1`],
             order_by: 'Eintrag'
         });
         data.Lz_ID = parseInt(find_fag.DATA[0].Eintrag);
@@ -322,106 +329,94 @@ if (data.Lz_ID > 0) {
     }
 }
 
-
 console.log(data);
 
-args = {
-    object_id: 7,
-    field_name: 'Dienst',
-    condition: {
-        Eintrag: data.Auftrag_ID
-    }
+data.args.Check_Condition_Versand = {
+    object_id: data.object_ids.Auftrag_formular,
+    fields: ['Dienst'],
+    conditions: [`Eintrag = ${data.Auftrag_ID}`]
 };
-const prom_cond_versand = promisedDLookup(args);
+data.promies.Check_Condition_Versand = dbAction('select', data.args.Check_Condition_Versand);
 
 showProgress(20, 'Lieferscheindaten werden ermittelt');
-const mandant_id = 1;
+data.mandant_id = 1;
 if (data.Auftrag_ID > 0) {
-    args = {
-        object_id: 7,
-        field_name: 'Kunde_ID',
-        condition: {
-            Eintrag: data.Auftrag_ID
+    data.args.select_Kunde_Im_Auftrag = {
+            object_id: data.object_ids.Auftrag_formular,
+            fields: ['Kunde_ID'],
+            conditions: [`Eintrag = ${data.Auftrag_ID}`]   
         }
-    };
     const prom_kunde = promisedDLookup(args);
-    let look_kunde_id = await prom_kunde; // jshint ignore:line
-    data.Kunde_ID = parseInt(look_kunde_id.DATA);
+    data.commands.select_Kunde_Im_Auftrag = await dbAction('select', data.args.select_Kunde_Im_Auftrag); // jshint ignore:line
+    data.Kunde_ID = parseInt(data.commands.select_Kunde_Im_Auftrag.DATA);
 } else {
     data.Kunde_ID = 3042;
 }
-args = {
-    object_id: 921, //273,
-    field_name: 'Status',
-    condition: {
-        Eintrag: data.Kunde_ID
-    }
+
+
+data.args.select_KundeStatus = {
+    object_id: data.object_ids.Kunden_DB, //273,
+    fields: ['Status'],
+    conditions: [`Eintrag = ${data.Kunde_ID}`] 
 };
-const prom_kd_status = promisedDLookup(args);
-let look_kd_status = await prom_kd_status; // jshint ignore:line
-if (parseInt(look_kd_status.DATA) === 1) {
+// const prom_kd_status = promisedDLookup(args);
+data.commands.select_KundeStatus = await dbAction('select', data.args.select_KundeStatus); // jshint ignore:line
+if (parseInt(data.commands.select_KundeStatus.DATA) === 1) {
     toast('Bitte beachten: Für diesen Kunden ist Vorkasse angegeben!!!', 'error');
 }
-args = {
-    object_id: 25,
-    field_name: 'Max(Nummer)',
-    condition: {
-        Jahr: current_year,
-        Mandant_ID: mandant_id
-    }
+data.args.select_maxNummer_LieferscheinERP_Formular = {
+    object_id: data.object_ids.LieferscheinERP_Formular,
+    fields: ['Max(Nummer) as max_Nummer'],
+    conditions: [`Jahr = ${current_year}`, `Mandant_ID = ${data.mandant_id}`]
 };
-const prom_neu_num = promisedDLookup(args);
-let look_neu_num = await prom_neu_num; // jshint ignore:line
-if (look_neu_num.STATUS === 0) {
+// const prom_neu_num = promisedDLookup(args);
+data.commands.select_maxNummer_LieferscheinERP_Formular = await dbAction('select', data.args.select_maxNummer_LieferscheinERP_Formular); // jshint ignore:line
+if (data.commands.select_maxNummer_LieferscheinERP_Formular.STATUS === 0) {
     data.Neunummer = 0;
 } else {
-    if (look_neu_num.DATA === false || look_neu_num.DATA === null) {
+    if (data.commands.select_maxNummer_LieferscheinERP_Formular.DATA != 1) {
         data.Neunummer = 0;
     } else {
-        data.Neunummer = parseInt(look_neu_num.DATA);
+        data.Neunummer = parseInt(data.commands.select_maxNummer_LieferscheinERP_Formular.DATA);
     }
 }
 showProgress(22, 'Versanddienst aus Kundenforderungen wird ermittelt');
-args = {
-    object_id: 174,
-    field_name: 'Count(Eintrag)',
-    condition: {
-        Kunde_ID: data.Kunde_ID,
-        Thema: 'Versandnummer',
-        Old: 0
-    }
+data.args.select_cond_Anforderung = {
+    object_id: data.object_ids.Anforderungen_tab_Datenquelle,
+    fields: ['Count(Eintrag) as count_Eintrag'],
+    condition: [`Kunde_ID = ${data.Kunde_ID}`, ` Thema = 'Versandnummer'`, `Old = 0`]
 };
-const prom_cond_anford = promisedDLookup(args);
+data.commands.select_cond_Anforderung = await dbAction('select', data.args.select_cond_Anforderung);
+//const prom_cond_anford = promisedDLookup(args);
 
-const [look_cond_versand, look_cond_anford] = await Promise.all([prom_cond_versand, prom_cond_anford]); // jshint ignore:line
-// console.log('bedingungen', look_cond_ok.DATA);
-// console.log('bedingungen', look_cond_prog.DATA);
+//const [look_cond_versand, look_cond_anford] = await Promise.all([prom_cond_versand, prom_cond_anford]); // jshint ignore:line
 
 if (data.Start_cond == 1) {
     showProgress(25, 'Lieferschein wird erzeugt');
-    args = {
-        object_id: 25,
+    data.args.insert_Lieferschein = {
+        object_id: data.object_ids.LieferscheinERP_Formular,
         values: {
             Nummer: data.Neunummer + 1,
             Jahr: current_year,
-            // Jahr: 1992,
             Datum: today,
             Auftrag_ID: data.Auftrag_ID,
             Mandant_ID: mandant_id,
         },
     };
     if (data.Auftrag_ID === 0) {
-        args.values.Bemerkung = 'reservierte LS-Nummer';
-        args.values.Druck = 1;
-        args.values.Rechnung = 1;
+        data.args.insert_Lieferschein.values.Bemerkung = 'reservierte LS-Nummer';
+        data.args.insert_Lieferschein.values.Druck = 1;
+        data.args.insert_Lieferschein.values.Rechnung = 1;
     }
-    const prom_make_ls = promisedInsertInto(args);
+
+    data.commands.insert_Lieferschein = await dbAction('insert', data.args.insert_Lieferschein)
+    /* const prom_make_ls = promisedInsertInto(args);
     let ins_make_ls = await prom_make_ls; // jshint ignore:line
-    console.log('Lieferschein wurde erzeugt', ins_make_ls);
+    console.log('Lieferschein wurde erzeugt', ins_make_ls); */
     if (data.Auftrag_ID === 0) {
         showProgress(30, 'Leere Lieferposition wird erzeugt');
-        args = {
-            object_id: 360,
+        data.args.insert_Lieferposition = {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
             values: {
                 Waehrung_ID: 2,
                 Liefer_ID: ins_make_ls.DATA,
@@ -434,17 +429,59 @@ if (data.Start_cond == 1) {
                 Sicht: 1
             },
         };
-        const prom_make_lpos = promisedInsertInto(args);
-        let ins_make_lpos = await prom_make_lpos; // jshint ignore:line
+        // const prom_make_lpos = promisedInsertInto(args);
+        // let ins_make_lpos = await prom_make_lpos; // jshint ignore:line
+        data.commands.insert_Lieferposition = await dbAction('insert', data.args.insert_Lieferposition);
         toast('Dieser Lieferschein kann nur über die Versandliste geöffnet werden!', 'info');
     }
 
     if (data.Auftrag_ID > 0) {
         showProgress(35, 'Anschrift und Versanddaten aus Auftrag werden kopiert');
-        args = {
-            object_id: 25,
-            from: 'Auftrag INNER JOIN Lieferschein ON Auftrag.Eintrag = Lieferschein.Auftrag_ID',
-            select: {
+        data.args.select_Auftragdaten = {}
+        data.commands.select_join_Auftrag_Lieferschein = await dbAction('select', {
+            object_id: data.object_ids.Arbeitsschritt_Datenquelle,
+            fields: {
+                [data.object_ids.Auftrag_formular]: ['Eintrag as ArbeitsschrittEintrag', 'AuftragID'],
+            },
+            join: [
+                [data.object_ids.Auftrag_formular, 'Eintrag', data.object_ids.LieferscheinERP_Formular, 'Auftrag_ID']
+            ]
+        });
+
+        data.promises_update_neu_Lieferschein = [];
+
+        for (let i = 0; i < select_join_Auftrag_Lieferschein.DATA.length; i++) {
+            data.promises_update_neu_Lieferschein.push(dbAction('update', {
+                object_id: data.object_ids.LieferscheinERP_Formular,
+                values: {
+                    'Lieferschein.Zeile1': select_join_Auftrag_Lieferschein.DATA[i].RZeile1,
+                    'Lieferschein.Zeile2': select_join_Auftrag_Lieferschein.DATA[i].RZeile2,
+                    'Lieferschein.Zeile3': select_join_Auftrag_Lieferschein.DATA[i].RZeile3,
+                    'Lieferschein.Land': select_join_Auftrag_Lieferschein.DATA[i].RLand,
+                    'Lieferschein.Ort': select_join_Auftrag_Lieferschein.DATA[i].ROrt,
+                    'Lieferschein.Strasse': select_join_Auftrag_Lieferschein.DATA[i].RStrasse,
+                    'Lieferschein.PLZ': select_join_Auftrag_Lieferschein.DATA[i].RPLZ,
+                    'Lieferschein.VZeile1': select_join_Auftrag_Lieferschein.DATA[i].Versandname,
+                    'Lieferschein.VZeile2': select_join_Auftrag_Lieferschein.DATA[i].Versandname2,
+                    'Lieferschein.VZeile3': select_join_Auftrag_Lieferschein.DATA[i].Versandname3,
+                    'Lieferschein.VLand': select_join_Auftrag_Lieferschein.DATA[i].Versandland,
+                    'Lieferschein.VOrt': select_join_Auftrag_Lieferschein.DATA[i].Versandort,
+                    'Lieferschein.VStrasse': select_join_Auftrag_Lieferschein.DATA[i].Versandstrasse,
+                    'Lieferschein.VPLZ': select_join_Auftrag_Lieferschein.DATA[i].Versandplz,
+                    'Lieferschein.Dienst': select_join_Auftrag_Lieferschein.DATA[i].Dienst,
+                    'Lieferschein.Versandnummer': select_join_Auftrag_Lieferschein.DATA[i].Versandnummer,
+                    'Lieferschein.UPSNummer2': select_join_Auftrag_Lieferschein.DATA[i].Versandnummer2
+                },
+                conditions: [`Eintrag = ${data.commands.insert_Lieferschein.DATA}`]
+            }))
+        };
+
+        await Promise.all(data.promises_update_neu_Lieferschein);
+
+
+       /*  data.args.update_neu_Lieferschein = {
+            object_id: data.object_ids.LieferscheinERP_Formular,
+            values: {
                 'Lieferschein.Zeile1': '[Auftrag].[RZeile1]',
                 'Lieferschein.Zeile2': '[Auftrag].[RZeile2]',
                 'Lieferschein.Zeile3': '[Auftrag].[RZeile3]',
@@ -463,31 +500,59 @@ if (data.Start_cond == 1) {
                 'Lieferschein.Versandnummer': '[Auftrag].[Versandnummer]',
                 'Lieferschein.UPSNummer2': '[Auftrag].[Versandnummer2]'
             },
-            condition: {
-                'Lieferschein.Eintrag': ins_make_ls.DATA
-            }
+            conditions: [`Eintrag = ${data.commands.insert_Lieferschein.DATA}`]
         };
-        const prom_upd_addr = promisedUpdateRecord(args);
+        const prom_upd_addr = promisedUpdateRecord(args); 
+        */
+
         showProgress(40, 'Lieferbedingung aus Kunde wird kopiert');
-        args = {
-            object_id: 25,
-            from: 'Auftrag INNER JOIN Lieferschein ON Auftrag.Eintrag = Lieferschein.Auftrag_ID INNER JOIN Kunde ON Auftrag.Kunde_ID = Kunde.Eintrag',
-            select: {
-                'Lieferschein.Zahlung': '[Kunde].[Zahlung]'
+        data.args.select_LieferscheinZahlung_Auftrag_INNERJOIN_Lieferschein = {
+            object_id: data.object_ids.LieferscheinERP_Formular,
+            join: [
+                [data.object_ids.Auftrag_formular, 'Eintrag', data.object_ids.LieferscheinERP_Formular, 'Auftrag_ID']
+            ],
+            // from: 'Auftrag INNER JOIN Lieferschein ON Auftrag.Eintrag = Lieferschein.Auftrag_ID INNER JOIN Kunde ON Auftrag.Kunde_ID = Kunde.Eintrag',
+            fields: {
+                //'Lieferschein.Zahlung': '[Kunde].[Zahlung]'
             },
-            condition: {
-                'Lieferschein.Eintrag': ins_make_ls.DATA
+            conditions: {
+                [data.object_ids.LieferscheinERP_Formular]: [`Eintrag = ${ins_make_ls.DATA}`]
             }
         };
         const prom_upd_lbed = promisedUpdateRecord(args);
         await Promise.all([prom_upd_addr, prom_upd_lbed]); // jshint ignore:line
-        console.log('Lieferschein wurde ergänzt', ins_make_ls);
+        console.log('Lieferschein wurde ergänzt', data.commands.insert_Lieferschein);
+        
 
         if (data.Lz_ID > 0) {
             showProgress(45, 'Lieferposition aus Laufzettel wird erzeugt');
-            args = {
-                object_id: 360,
-                from: 'Laufzettel',
+            data.commands.select_Laufzettel = await dbAction('select', {
+                object_id: data.object_ids.Laufzettel_Formular,
+                fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag'],
+                conditions: [`Eintrag = ${data.Lz_ID}`]
+            });
+
+            data.args.insert_Lieferposition_from_Laufzettel = {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                values: {
+                    Position: data.commands.select_Laufzettel.DATA[0].Position,
+                    Name: data.commands.select_Laufzettel.DATA[0].Lieferartikel,
+                    Hersteller_ID: data.commands.select_Laufzettel.DATA[0].Hersteller_ID,
+                    Einheit: data.commands.select_Laufzettel.DATA[0].Einheit,
+                    Einzelpreis: data.commands.select_Laufzettel.DATA[0].Einzelpreis,
+                    Rabatt: data.commands.select_Laufzettel.DATA[0].Rabatt,
+                    Waehrung_ID: data.commands.select_Laufzettel.DATA[0].Waehrung_ID,
+                    AuftragPos_ID: data.commands.select_Laufzettel.DATA[0].Eintrag,
+                    Liefer_ID: Number(data.commands.insert_Lieferschein.DATA),
+                    Passport_ID: (data.Pp_ID ? data.Pp_ID : 0),
+                    Sicht: 1      
+                }
+            }
+
+                        
+            /* args = {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                from: 'Laufzettel', //Laufzettel_Formular
                 values: {
                     Position: '%Position',
                     Name: '%Lieferartikel',
@@ -504,20 +569,60 @@ if (data.Start_cond == 1) {
                 condition: {
                     Eintrag: data.Lz_ID
                 }
-            };
-            const prom_make_liefpos = promisedInsertInto(args);
-            let ins_make_liefpos = await prom_make_liefpos; // jshint ignore:line
-            data.LieferPos_ID = ins_make_liefpos.DATA[0];
-            // toast('LieferPos-ID ' + data.LieferPos_ID, 'info');
+            }; */
+            // const prom_make_liefpos = promisedInsertInto(args);
+            // let ins_make_liefpos = await prom_make_liefpos;
+            data.commands.insert_Lieferposition_from_Laufzettel = await dbAction('insert', data.args.insert_Lieferposition_from_Laufzettel); // jshint ignore:line
+            data.LieferPos_ID = data.commands.insert_Lieferposition_from_Laufzettel.DATA[0];
         }
     }
     // Automatik-Check
     if (data.Autom == 1) {
         console.log('Automatik-Prozedur gestartet');
         showProgress(50, 'Alle restlichen offenen Positionen ohne FA-Kennung kopieren');
-        args = {
-            object_id: 360,
-            from: 'Auftragsposition_form',
+        data.commands.select_Auftragsposition_form = await dbAction('select', {
+            object_id: data.object_ids.Auftragsposition_formular, 
+            fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag'],
+            conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, 'Gebucht = 0', 'Bearbeitet = 0'], 
+        }); 
+
+        data.commands.insert_restpos_Lieferposition = await dbAction('insert', {
+            values: {
+                Position: data.commands.select_Auftragsposition_form.DATA[0].Position,
+                Name: data.commands.select_Auftragsposition_form.DATA[0].Lieferartikel,
+                Hersteller_ID: data.commands.select_Auftragsposition_form.DATA[0].Hersteller_ID,
+                Einheit:  data.commands.select_Auftragsposition_form.DATA[0].Einheit,
+                Einzelpreis: data.commands.select_Auftragsposition_form.DATA[0].Einzelpreis,
+                Rabatt: data.commands.select_Auftragsposition_form.DATA[0].Rabatt,
+                Waehrung_ID: data.commands.select_Auftragsposition_form.DATA[0].Waehrung_ID,
+                AuftragPos_ID: data.commands.select_Auftragsposition_form.DATA[0].Eintrag,
+                Liefer_ID: data.commands.insert_Lieferschein.DATA
+            },
+        });
+
+        data.commands.select_from_Auftragsposition_form = await dbAction('select',{
+            object_id: data.object_ids.Auftragsposition_formular,
+            fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag'],
+            conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, 'Bearbeitet = 0']
+        }); 
+
+        data.commands.insert_Lieferposition = await dbAction('insert', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            values: {
+                Position: data.commands.select_from_Auftragsposition_form.DATA[0].Position,
+                Name: data.commands.select_from_Auftragsposition_form.DATA[0].Lieferartikel,
+                Hersteller_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Hersteller_ID,
+                Einheit: data.commands.select_from_Auftragsposition_form.DATA[0].Einheit,
+                Einzelpreis: data.commands.select_from_Auftragsposition_form.DATA[0].Einzelpreis,
+                Rabatt: data.commands.select_from_Auftragsposition_form.DATA[0].Rabatt,
+                Waehrung_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Waehrung_ID,
+                AuftragPos_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Eintrag,
+                Liefer_ID: data.commands.insert_Lieferschein.DATA
+            }
+        })
+/*         args = {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            from: 'Auftragsposition_form',  //data.object_ids.Auftragposition_form
             values: {
                 Position: '%Position',
                 Name: '%Lieferartikel',
@@ -537,25 +642,68 @@ if (data.Start_cond == 1) {
             condition_text: 'Eintrag <> ' + data.Lz_ID
         };
         const prom_make_restpos = promisedInsertInto(args);
-        let ins_make_restpos = await prom_make_restpos; // jshint ignore:line
+        let ins_make_restpos = await prom_make_restpos; // jshint ignore:line */
+
         showProgress(55, 'bei allen Pauschalen die Liefermenge auf 1 setzen');
-        args = {
-            object_id: 360,
-            from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
-            select: {
-                'Lieferposition.Liefermenge': 1,
+        data.commands.select_join_Auftragposition_Lieferposition = await dbAction('select', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            fields: ['Eintrag', 'Einzelpreis'],
+            join: [
+                [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID']
+            ],
+            conditions: {
+                [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein.DATA}`],
+                [data.object_ids.Auftragsposition_formular]:[`Gruppe_ID = 9`] 
+            }
+        })
+        
+        data.commands.update_Lieferposition = await dbAction('update', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            values: {
+                Liefermenge: 1,
+                Gesamtpreis: Number(data.commands.select_join_Auftragposition_Lieferposition[i].Einzelpreis)
+            }
+        })
+        
+/*         args = {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            values: {
+                [data.object_ids.Lieferposition_Datenquelle]:[Liefermenge: 1] 'Lieferposition.Liefermenge': 1,
                 'Lieferposition.Gesamtpreis': '[Lieferposition].[Einzelpreis]',
             },
+            from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
             condition: {
                 'Lieferposition.Liefer_ID': ins_make_ls.DATA,
                 'Auftragsposition.Gruppe_ID': 9
             }
-        };
-        const prom_upd_pau = promisedUpdateRecord(args);
-        upd_pau = await prom_upd_pau; // jshint ignore:line
+        }; */
+
+        // const prom_upd_pau = promisedUpdateRecord(args);
+        //upd_pau = await prom_upd_pau; // jshint ignore:line
+        data.upd_pau = data.commands.update_Lieferposition.DATA;
+
         showProgress(60, 'bei allen MMZ/Setup die Liefermenge und die Auftragsliefermenge auf 1 setzen');
-        args = {
-            object_id: 360,
+        data.commands.select_Einzelpreis = await dbAction('select', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            fields: ['Liefermenge', 'Einzelpreis'],
+            join: [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID'],
+            conditions: {
+                [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein.DATA}`],
+                [data.object_ids.Auftragsposition_formular]:[`MaxDateCode Like 'Mindermeng%' Or MaxDateCode Like 'Setup%'`]
+            }
+        });
+
+        data.commands.update_Liefermenge_Einzelpreis = await dbAction('update', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            values: {
+                Liefermenge: 1,
+                Gesamtpreis: Number(data.commands.select_Einzelpreis.DATA[0].Gesamtpreis)
+            }
+        });
+        
+        /* args = {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            fields: ['Liefermenge', 'Einzelpreis'],
             from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
             select: {
                 'Lieferposition.Liefermenge': 1,
@@ -568,7 +716,17 @@ if (data.Start_cond == 1) {
         };
         const prom_upd_minmeng1 = promisedUpdateRecord(args);
         await prom_upd_minmeng1; // jshint ignore:line
-        args = {
+ */
+        data.commands.select_join_Auftragsposition_Lieferposition = await dbAction('select',{
+            object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
+            fields: ['Eintrag'],
+            join: [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID'],
+            conditions: {
+                [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein.DATA}`],
+                [data.object_ids.Auftragsposition_formular]:[`MaxDateCode Like 'Mindermeng%' Or MaxDateCode Like 'Setup%'`]
+            }
+        })
+        /* args = {
             object_id: 13,
             from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
             values: {
@@ -581,15 +739,15 @@ if (data.Start_cond == 1) {
             condition_text: "(Auftragsposition.MaxDateCode Like 'Mindermeng%' Or Auftragsposition.MaxDateCode Like 'Setup%')"
         };
         const prom_upd_minmeng2 = promisedUpdateRecord(args);
-        await prom_upd_minmeng2;
+        await prom_upd_minmeng2; */
 
 
         if (data.Prog == 1) {
-
             // NEU 26.01.2023: Nur bei der soeben angelegten Lieferpos. die Liefermenge setzen !!!
             showProgress(65, 'bei Lieferpositionen mit passendem Passport die Liefermenge setzen');
-            args = {
-                object_id: 360,
+
+            /* args = {
+                object_id: 360,     //data.objec_ids.Lieferposition_Datenquelle
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID INNER JOIN Passport ON Passport.Auftrag_ID = Auftragsposition.Eintrag',
                 select: {
                     'Lieferposition.Liefermenge': '[Auftragsposition].[Anzahl]',
@@ -604,10 +762,27 @@ if (data.Start_cond == 1) {
                     'Lieferposition.Eintrag': data.LieferPos_ID
                 },
                 condition_text: 'Auftragsposition.Anzahl = Passport.Menge'
-            };
-            const prom_upd_passp1 = promisedUpdateRecord(args);
-            await prom_upd_passp1;
-            args = {
+            }; */
+
+            data.args.select_join_Liefermenge_Gesamtpreis = {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                fields: ['Liefermenge', 'Gesamtpreis'],
+                join: [
+                    [data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID', data.object_ids.Auftragsposition_formular, 'Eintrag', data-object_ids.Passport_formular, 'Auftrag_ID']
+                ],
+                conditions: {
+                    [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`],
+                    [data.object_ids.Auftragsposition_formular]:[`Liefermenge = 0`],
+                    [data.object_ids.Auftragsposition_formular]:[`Gebucht = 0`],
+                    [data.object_ids.Passport_formular]:[`Geliefert = ${0}`],
+                    [data.object_ids.Lieferposition_Datenquelle]:['Uebertragen = 0'],
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Eintrag = ${data.LieferPos_ID}`],
+                }
+            }
+            data.commands.select_Liefermenge_Gesamtpreis = await dbAction('select', data.args.select_join_Liefermenge_Gesamtpreis);
+            //await prom_upd_passp1;
+
+            /* args = {
                 object_id: 13,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID INNER JOIN Passport ON Passport.Auftrag_ID = Auftragsposition.Eintrag',
                 select: {
@@ -625,7 +800,27 @@ if (data.Start_cond == 1) {
                 condition_text: 'Auftragsposition.Anzahl = Passport.Menge'
             };
             const prom_upd_passp2 = promisedUpdateRecord(args);
-            await prom_upd_passp2;
+            await prom_upd_passp2; */
+
+            data.commands.select_innerjoin_Lieferposition_Auftragpositions_Anzahl = await dbAction('select', {
+                object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
+                fields: ['Anzahl'],
+                join: [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID', data.object_ids.Passport_formular, 'Auftrag_ID'],
+                conditions: {
+                    [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`, 'Liefermenge = 0', 'Gebucht = 0'],
+                    [data.object_ids.Passport_formular]:[`Geliefert = 0`],
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Eintrag = ${data.LieferPos_ID}`],
+                    [data.object_ids.Auftragsposition_formular]:[]
+                }
+            });
+
+            data.commands.update_joined_Lieferposition_Auftragsposition = await dbAction('update', {
+                object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
+                values: {
+                    
+                }         
+            })
+
             args = {
                 object_id: 51,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID INNER JOIN Passport ON Passport.Auftrag_ID = Auftragsposition.Eintrag',
@@ -645,7 +840,6 @@ if (data.Start_cond == 1) {
             const prom_upd_passp3 = promisedUpdateRecord(args);
             await prom_upd_passp3;
         } else {
-
             // NEU 26.01.2023: Nur bei der soeben angelegten Lieferpos. die Liefermenge setzen !!!
             showProgress(66, 'nur bei der Lieferposition zum Laufzettel die Liefermenge setzen');
             args = {
@@ -761,30 +955,6 @@ if (data.Start_cond == 1) {
 
         }
     }
-
-    // FAG erledigen prüfen - deaktiviert 30.04.2019
-    /*
-            if (data.Neustatus == 1) {
-                const promised_choice = promisedChoice({
-                    header: "Soll der FA-Status auf ERLEDIGT IN ABW. gestellt werden?"
-                });
-                data.status_choice = await promised_choice; // jshint ignore:line
-                if (data.status_choice === true) {
-                    $('.form').find("input[name=\'Status\']").parent('div').dropdown('set value', 10).dropdown('set text', 'Erledigt in Abw. (Passports komplett)');
-                    args = {
-                        object_id: 239,
-                        values: {
-                            'Status': 10
-                        },
-                        condition: {
-                            'Eintrag': data.Lz_ID
-                        }
-                    };
-                    await promisedUpdateRecord(args);
-                    console.log('Statusabfrage!');
-                }
-            }
-    */
 
     writeLog(25, 'Lieferscheinparameter = Neustatus: ' + data.Neustatus + '; From_FA: ' + data.From_FA + '; Gruppe_ID: ' + data.Gruppe_ID + '; FAG-ID: ' + data.Lz_ID, ins_make_ls.DATA);
 
