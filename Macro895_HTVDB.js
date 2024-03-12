@@ -4,6 +4,13 @@ let current_year = today.getFullYear();
 today = today.getDate() + '-' + parseInt(today.getMonth() + 1) + '-' + today.getFullYear();
 let args = {};
 
+/**
+ *@author: d.nguyen
+ *@description: modernisierte Makro aus dem Makro
+ *@param: data = {?}
+ */
+
+
 data = {...data, 
     macro_id: 895,
     args: {},
@@ -44,7 +51,7 @@ if (data.user_data.STATUS !== 1) {
 if (data.hasOwnProperty("Auftrag_ID")) {
     data.args.select_Auftragbestellpos = {
         object_id: data.object_ids.Auftragbestellposliste_liste,
-        fields: ['Count(Eintrag)'],
+        fields: ['Count(Eintrag) as count_Eintrag'],
         conditions: [`Auftrag_ID = ${data.Auftrag_ID}`,`Eingang = 0`]
     };
     data.commands.select_Auftragbestellpos = await dbAction('select', data.args.select_Auftragbestellpos);  
@@ -199,7 +206,6 @@ if (data.Lz_ID > 0) {
 
             showProgress(14, 'bei Test Standardzusatztext setzen');
 
-            
             args = {
                 object_id: Passportposition_Datenquelle,
                 from: 'Arbeitsschritt_form INNER JOIN PassportPos ON Arbeitsschritt_form.Eintrag = PassportPos.Schritt_ID',
@@ -211,7 +217,6 @@ if (data.Lz_ID > 0) {
                     'PassportPos.Passport_ID': data.Pp_ID
                 }
             };
-
             const prom_upd_ppos2 = promisedUpdateRecord(args); */
             data.args.prom_upd_ppos1 = {
                 object_id: data.object_ids.Passport_formular,
@@ -509,18 +514,30 @@ if (data.Start_cond == 1) {
         data.args.select_LieferscheinZahlung_Auftrag_INNERJOIN_Lieferschein = {
             object_id: data.object_ids.LieferscheinERP_Formular,
             join: [
-                [data.object_ids.Auftrag_formular, 'Eintrag', data.object_ids.LieferscheinERP_Formular, 'Auftrag_ID']
+                [data.object_ids.Auftrag_formular, 'Eintrag', data.object_ids.LieferscheinERP_Formular, 'Auftrag_ID'],
+                [data.object_ids.Auftrag_formular, 'Kunde_ID', data.object_ids.Kunden_DB, 'Eintrag']
             ],
             // from: 'Auftrag INNER JOIN Lieferschein ON Auftrag.Eintrag = Lieferschein.Auftrag_ID INNER JOIN Kunde ON Auftrag.Kunde_ID = Kunde.Eintrag',
             fields: {
                 //'Lieferschein.Zahlung': '[Kunde].[Zahlung]'
+                [data.object_ids.Kunden_DB]:['Zahlung']
             },
             conditions: {
-                [data.object_ids.LieferscheinERP_Formular]: [`Eintrag = ${ins_make_ls.DATA}`]
+                [data.object_ids.LieferscheinERP_Formular]: [`Eintrag = ${insert_Lieferschein.DATA}`]
             }
         };
-        const prom_upd_lbed = promisedUpdateRecord(args);
-        await Promise.all([prom_upd_addr, prom_upd_lbed]); // jshint ignore:line
+        data.commands.select_LieferscheinZahlung_Auftrag_INNERJOIN_Lieferschein = await dbAction('select', data.args.select_LieferscheinZahlung_Auftrag_INNERJOIN_Lieferschein);
+        data.commands.update_Lieferschein_Zahlung = await dbAction('update', {
+            object_id: data.object_ids.LieferscheinERP_Formular,
+            values: {
+                Zahlung: data.commands.select_LieferscheinZahlung_Auftrag_INNERJOIN_Lieferschein.DATA[0].Zahlung
+            },
+            conditions: 
+                [`Eintrag = ${insert_Lieferschein.DATA}`]
+        })
+        const prom_upd_lbed = data.commands.update_Lieferschein_Zahlung.DATA;
+        // const prom_upd_lbed = promisedUpdateRecord(args);
+        // await Promise.all([prom_upd_addr, prom_upd_lbed]); // jshint ignore:line
         console.log('Lieferschein wurde ergänzt', data.commands.insert_Lieferschein);
         
 
@@ -600,27 +617,7 @@ if (data.Start_cond == 1) {
             },
         });
 
-        data.commands.select_from_Auftragsposition_form = await dbAction('select',{
-            object_id: data.object_ids.Auftragsposition_formular,
-            fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag'],
-            conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, 'Bearbeitet = 0']
-        }); 
-
-        data.commands.insert_Lieferposition = await dbAction('insert', {
-            object_id: data.object_ids.Lieferposition_Datenquelle,
-            values: {
-                Position: data.commands.select_from_Auftragsposition_form.DATA[0].Position,
-                Name: data.commands.select_from_Auftragsposition_form.DATA[0].Lieferartikel,
-                Hersteller_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Hersteller_ID,
-                Einheit: data.commands.select_from_Auftragsposition_form.DATA[0].Einheit,
-                Einzelpreis: data.commands.select_from_Auftragsposition_form.DATA[0].Einzelpreis,
-                Rabatt: data.commands.select_from_Auftragsposition_form.DATA[0].Rabatt,
-                Waehrung_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Waehrung_ID,
-                AuftragPos_ID: data.commands.select_from_Auftragsposition_form.DATA[0].Eintrag,
-                Liefer_ID: data.commands.insert_Lieferschein.DATA
-            }
-        })
-/*         args = {
+        /*         args = {
             object_id: data.object_ids.Lieferposition_Datenquelle,
             from: 'Auftragsposition_form',  //data.object_ids.Auftragposition_form
             values: {
@@ -642,7 +639,29 @@ if (data.Start_cond == 1) {
             condition_text: 'Eintrag <> ' + data.Lz_ID
         };
         const prom_make_restpos = promisedInsertInto(args);
-        let ins_make_restpos = await prom_make_restpos; // jshint ignore:line */
+        let ins_make_restpos = await prom_make_restpos; */
+
+        data.commands.select_from_Auftragsposition_form = await dbAction('select',{
+            object_id: data.object_ids.Auftragsposition_formular,
+            fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag'],
+            conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, 'Bearbeitet = 0']
+        }); 
+
+        data.commands.insert_Lieferposition = await dbAction('insert', {
+            object_id: data.object_ids.Lieferposition_Datenquelle,
+            values: {
+                Position: data.commands.select_from_Auftragsposition_form.DATA[0].Position,
+                Name: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Lieferartikel,
+                Hersteller_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Hersteller_ID,
+                Einheit: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Einheit,
+                Einzelpreis: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Einzelpreis,
+                Rabatt: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Rabatt,
+                Waehrung_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Waehrung_ID,
+                AuftragPos_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Eintrag,
+                Liefer_ID: Number(data.commands.insert_Lieferschein.DATA)
+            }
+        })
+
 
         showProgress(55, 'bei allen Pauschalen die Liefermenge auf 1 setzen');
         data.commands.select_join_Auftragposition_Lieferposition = await dbAction('select', {
@@ -724,7 +743,7 @@ if (data.Start_cond == 1) {
             conditions: {
                 [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein.DATA}`],
                 [data.object_ids.Auftragsposition_formular]:[`MaxDateCode Like 'Mindermeng%' Or MaxDateCode Like 'Setup%'`]
-            }
+            }   
         })
         /* args = {
             object_id: 13,
@@ -768,7 +787,8 @@ if (data.Start_cond == 1) {
                 object_id: data.object_ids.Lieferposition_Datenquelle,
                 fields: ['Liefermenge', 'Gesamtpreis'],
                 join: [
-                    [data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID', data.object_ids.Auftragsposition_formular, 'Eintrag', data-object_ids.Passport_formular, 'Auftrag_ID']
+                    [data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID', data.object_ids.Auftragsposition_formular, 'Eintrag'],
+                    [data.object_ids.Passport_formular, 'Auftrag_ID', data.object_ids.Auftragsposition_formular, 'Eintrag']
                 ],
                 conditions: {
                     [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`],
@@ -801,33 +821,54 @@ if (data.Start_cond == 1) {
             };
             const prom_upd_passp2 = promisedUpdateRecord(args);
             await prom_upd_passp2; */
+            data.commands.select_Passport_Menge = await dbAction('select', {
+                object_id: data.object_ids.Passport_formular,
+                fields: ['Menge'],
+                conditions: ['Geliefert = 0']
+            });
+
+            data.commands.select_Auftragsposition_Anzahl = await dbAction('select', {
+                object_id: data.object_ids.Auftragsposition_formular,
+                fields: ['Anzahl'],
+                conditions: [`Eintrag = ${data.Lz_ID}`, 'Liefermenge = 0', 'Gebucht = 0']
+            });
+
+            data.commands.select_Passport_Menge = await dbAction('select', {
+                object_ids: Passport_formular,
+                fields: ['Menge'],
+                conditions: ['Geliefert = 0']
+            })
 
             data.commands.select_innerjoin_Lieferposition_Auftragpositions_Anzahl = await dbAction('select', {
                 object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
                 fields: ['Anzahl'],
-                join: [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID', data.object_ids.Passport_formular, 'Auftrag_ID'],
+                join: [
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID'],
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Passport_formular, 'Auftrag_ID']
+                ],
                 conditions: {
                     [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`, 'Liefermenge = 0', 'Gebucht = 0'],
                     [data.object_ids.Passport_formular]:[`Geliefert = 0`],
-                    [data.object_ids.Lieferposition_Datenquelle]:[`Eintrag = ${data.LieferPos_ID}`],
-                    [data.object_ids.Auftragsposition_formular]:[]
+                    [data.object_ids.Lieferposition_Datenquelle]:['Uebertragen = 0', `Eintrag = ${data.LieferPos_ID}`],
+                    [data.object_ids.Auftragsposition_formular]:[`Anzahl = ${data.commands.select_Passport_Menge.DATA[0].Menge}`]
                 }
             });
 
             data.commands.update_joined_Lieferposition_Auftragsposition = await dbAction('update', {
                 object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
                 values: {
-                    
+                    Liefermenge: data.commands.select_innerjoin_Lieferposition_Auftragpositions_Anzahl.DATA[0].Anzahl,
+                    Gebucht: 1
                 }         
             })
 
-            args = {
+            /* args = {
                 object_id: 51,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID INNER JOIN Passport ON Passport.Auftrag_ID = Auftragsposition.Eintrag',
                 values: {
                     'Passport.Geliefert': 1
                 },
-                condition: {
+                conditions: {
                     'Auftragsposition.Eintrag': data.Lz_ID,
                     'Auftragsposition.Liefermenge': 0,
                     'Auftragsposition.Gebucht': 0,
@@ -838,11 +879,34 @@ if (data.Start_cond == 1) {
                 condition_text: 'Auftragsposition.Anzahl = Passport.Menge'
             };
             const prom_upd_passp3 = promisedUpdateRecord(args);
-            await prom_upd_passp3;
+            await prom_upd_passp3; */
+            data.commands.select_Auftragsposition_Anzahl_INNERJOIN_Lieferposistion = await dbAction('select', {
+                object_id: data.object_ids.Auftragsposition_formular,
+                fields: [`Anzahl`],
+                join: [
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID'],
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Passport_formular, 'Auftrag_ID']
+                ],
+                conditions: {
+                    [data.object_ids.Passport_formular]:['Geliefert = 0'],
+                    [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`,`Liefermenge = 0`, 'Gebucht = 0'],
+                    [data.object_ids.Passport_formular]:['Geliefert = 0'],
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Uebertragen = 0`, `Eintrag = ${data.LieferPos_ID}`],
+                }
+            })
+
+            data.commands.update_Passport_Geliefert = await dbAction('UPDATE', {
+                object_id: data.object_ids.Passport_formular,
+                values: {
+                    Geliefert: 1
+                },
+                conditions: [`Menge = ${data.commands.select_Auftragsposition_Anzahl_INNERJOIN_Lieferposistion.DATA[0].Anzahl}`]
+            })
+
         } else {
             // NEU 26.01.2023: Nur bei der soeben angelegten Lieferpos. die Liefermenge setzen !!!
             showProgress(66, 'nur bei der Lieferposition zum Laufzettel die Liefermenge setzen');
-            args = {
+            /* args = {
                 object_id: 360,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
                 select: {
@@ -856,8 +920,30 @@ if (data.Start_cond == 1) {
                 }
             };
             const prom_upd_passp1 = promisedUpdateRecord(args);
-            await prom_upd_passp1;
-            args = {
+            await prom_upd_passp1; */
+
+            data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion = await dbAction('SELECT',{
+                object_id: data.object_ids.Auftragsposition_formular,
+                fields: ['Anzahl', 'Einzelpreis', 'Liefermenge', 'Rabatt'],
+                join: [
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID']
+                ],
+                conditions: {
+                    [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`],
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein}`, `Eintrag = ${data.LieferPos_ID}`],
+                }
+            });
+
+            data.commands.update_Lieferposition_Liefermenge_Gesamtpreis = await dbAction('UPDATE', {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                values: {
+                    Liefermenge: data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion.DATA[0].Anzahl - data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion.DATA[0].Liefermenge,
+                    Gesamtpreis: data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion.DATA[0].Anzahl * data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion.DATA[0].Einzelpreis * (1-parseFloat(data.commands.select_INNERJOIN_Auftragsposition_Anzahl_Einzelpreis_Rabatt_join_Lieferpostion.DATA[0].Rabatt)) 
+                },
+                conditions: [`Eintrag = ${data.LieferPos_ID}`, `Liefer_ID = ${data.commands.insert_Lieferschein}`]
+            });
+            
+            /* args = {
                 object_id: 13,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
                 select: {
@@ -871,13 +957,33 @@ if (data.Start_cond == 1) {
                 }
             };
             const prom_upd_passp2 = promisedUpdateRecord(args);
-            await prom_upd_passp2;
+            await prom_upd_passp2; */
+            data.commands.select_INNERJOIN_Anzahl_Auftragsposition = await dbAction('SELECT', {
+                object_id: Auftragsposition_formular, 
+                fields: ['Anzahl'],
+                join: [
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID']
+                ],
+                conditions: {
+                    [data.object_ids.Auftragsposition_formular]:[`Eintrag = ${data.Lz_ID}`],
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID = ${data.commands.insert_Lieferschein.DATA}`, `Eintrag = ${data.LieferPos_ID}`]
+                }
+            });
+            data.commands.update_Liefermenge_Gebuch_In_Auftragsposition = await dbAcion('SELECT', {
+                object_id: data.object_ids.Auftragsmakro_Auftragspositionen_Liste,
+                values: {
+                    Liefermenge: data.commands.select_INNERJOIN_Anzahl_Auftragsposition.DATA[0].Anzahl,
+                    Gebucht: 1
+                },
+                conditions: [`Eintrag = ${data.Lz_ID}`]
+            })
         }
     } else {
         if (data.Auftrag_ID > 0) {
             showProgress(51, 'Alle restlichen offenen Positionen kopieren');
             console.log('keine Automatik-Prozedur möglich');
-            args = {
+
+            /* args = {
                 object_id: 360,
                 from: 'Auftragsposition_form',
                 values: {
@@ -899,8 +1005,31 @@ if (data.Start_cond == 1) {
                 condition_text: 'Eintrag <> ' + data.Lz_ID
             };
             const prom_make_restpos = promisedInsertInto(args);
-            let ins_make_restpos = await prom_make_restpos;
+            let ins_make_restpos = await prom_make_restpos; */
+
+            data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition = await dbAction('select',{
+                object_id: data.object_ids.Auftragsposition_formular,
+                fields: ['Position', 'Lieferartikel', 'Hersteller_ID', 'Einheit', 'Einzelpreis', 'Rabatt', 'Waehrung_ID', 'Eintrag', 'Bearbeitet'],
+                conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, `Gebucht = 0`, `Eintrag <> ${data.Lz_ID}`]
+            }); 
+    
+            data.commands.insert_Lieferposition = await dbAction('insert', {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                values: {
+                    Position: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Position,
+                    Name: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Lieferartikel,
+                    Hersteller_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Hersteller_ID,
+                    Einheit: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Einheit,
+                    Einzelpreis: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Einzelpreis,
+                    Rabatt: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Rabatt,
+                    Waehrung_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Waehrung_ID,
+                    AuftragPos_ID: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Eintrag,
+                    Liefer_ID: data.commands.insert_Lieferschein.DATA,
+                    Sicht: data.commands.select_from_Auftragsposition_form_toInsert_Lieferposition.DATA[0].Bearbeiter
+                }
+            })
             showProgress(56, 'bei allen Pauschalen die Liefermenge auf 1 setzen');
+            /* 
             args = {
                 object_id: 360,
                 from: 'Auftragsposition INNER JOIN Lieferposition ON Auftragsposition.Eintrag = Lieferposition.AuftragPos_ID',
@@ -914,7 +1043,29 @@ if (data.Start_cond == 1) {
                 }
             };
             const prom_upd_pau = promisedUpdateRecord(args);
-            let upd_pau = await prom_upd_pau;
+            let upd_pau = await prom_upd_pau; */
+
+            data.commands.select_INNERJOIN_Einzelpreis = await dbAcion('SELECT', {
+                object_id: data.object_ids.Lieferposition_Datenquelle, 
+                fields: ['Einzelpreis'],
+                join: [
+                    [data.object_ids.Auftragsposition_formular, 'Eintrag', data.object_ids.Lieferposition_Datenquelle, 'AuftragPos_ID']
+                ],
+                conditions: {
+                    [data.object_ids.Lieferposition_Datenquelle]:[`Liefer_ID =${data.commands.insert_Lieferschein.DATA}`],
+                    [data.object_ids.Auftragsposition_formular]:[`Gruppe_ID = 9`]
+                }
+            });
+
+            data.commands.update_Liefermenge_Gesamtpreis = await dbAcion('UPDATE', {
+                object_id: data.object_ids.Lieferposition_Datenquelle,
+                values: {
+                    Liefermenge: 1,
+                    Gesamtpreis: select_INNERJOIN_Einzelpreis
+                },
+                conditions: [`Liefer_ID = ${Number(data.commands.insert_Lieferschein.DATA)}`]
+            })
+            
             toast('Bitte erzeugten Lieferschein noch die Liefermengen übertragen!!!', 'warning', {
                 displayTime: 0,
                 closeIcon: false
@@ -926,7 +1077,8 @@ if (data.Start_cond == 1) {
         console.log('Versanddienst über Kufo');
         if (look_cond_anford.DATA == 1) {
             showProgress(58, 'Versanddienst aus Kundenforderungen wird verarbeitet');
-            args = {
+
+           /*  args = {
                 object_id: 174,
                 field_name: 'Anforderung',
                 condition: {
@@ -937,8 +1089,17 @@ if (data.Start_cond == 1) {
             };
             const prom_cond_vnum = promisedDLookup(args);
             let look_cond_vnum = await prom_cond_vnum;
-            let dienst = look_cond_vnum.DATA.split(":");
-            args = {
+             */
+
+            data.commands.select_Anforderung = dbAction('select', {
+                object_id: data.object_ids.Anforderungen_tab_Datenquelle,
+                fields: ['Anforderung'],
+                conditions: [`Kunde:ID = ${data.Kunde_ID}`, `Thema = 'Versandnummer'`, `Old = 0`]
+            });
+
+            let dienst =  data.commands.select_Anforderung.DATA[0].Anforderung.split(":");
+            
+            /* args = {
                 object_id: 25,
                 values: {
                     'Dienst': dienst[0],
@@ -949,10 +1110,15 @@ if (data.Start_cond == 1) {
                 }
             };
             const prom_upd_dienst = promisedUpdateRecord(args);
-            let upd_dienst = await prom_upd_dienst;
-
-
-
+            let upd_dienst = await prom_upd_dienst; */
+            data.commands.update_UDP_Dienst = await dbAcion('UPDATE', {
+                object_id: data.object_ids.LieferscheinERP_Formular,
+                values: {
+                    Dienst: dienst[0],
+                    Versandnummer: dienst[1]
+                },
+                conditions: [`Eintrag = ${data.commands.insert_Lieferschein.DATA}`]
+            })
         }
     }
 
@@ -962,7 +1128,7 @@ if (data.Start_cond == 1) {
     if (data.Neustatus == 1) {
         if (data.From_FA == 1) {
             $('.form').find("input[name=\'Status\']").parent('div').dropdown('set value', 8).dropdown('set text', 'Erledigt im Labor');
-            args = {
+           /*  args = {
                 object_id: 239,
                 values: {
                     'Status': 8
@@ -970,10 +1136,17 @@ if (data.Start_cond == 1) {
                 condition: {
                     'Eintrag': data.Lz_ID
                 }
-            };
+            }; */
+            data.args.update_Status_Auftragsposition_grp_Datenquelle = {
+                object_id: data.object_ids.Auftragsposition_grp_Datenquelle,
+                values: {
+                    Status: 8
+                },
+                conditions: [`Eintrag = ${data.Lz_ID}`]
+            }
             umstell = 8;
         } else {
-            args = {
+            /* args = {
                 object_id: 239,
                 values: {
                     'Status': 10
@@ -981,13 +1154,22 @@ if (data.Start_cond == 1) {
                 condition: {
                     'Eintrag': data.Lz_ID
                 }
-            };
+            }; */
+            data.args.update_Status_Auftragsposition_grp_Datenquelle = {
+                object_id: data.object_ids.Auftragsposition_grp_Datenquelle,
+                values: {
+                    Status: 10
+                },
+                conditions: [`Eintrag = ${data.Lz_ID}`]
+            }
+            umstell = 10;
         }
-        await promisedUpdateRecord(args);
+        //await promisedUpdateRecord(args);
+        await dbAction('UPDATE', data.args.update_Status_Auftragsposition_grp_Datenquelle);
         toast('Der FA-Status wurde umgestellt!', 'info');
     } else {
         if (data.Neustatus == 2) {
-            args = {
+            /* args = {
                 object_id: 239,
                 values: {
                     'Status': 12
@@ -997,12 +1179,21 @@ if (data.Start_cond == 1) {
                 }
             };
             umstell = 12;
-            await promisedUpdateRecord(args);
+            await promisedUpdateRecord(args); */
+            data.args.update_Status_Auftragsposition_grp_Datenquelle = {
+                object_id: data.object_ids.Auftragsposition_grp_Datenquelle,
+                values: {
+                    Status: 12
+                },
+                conditions: [`Eintrag = ${data.Lz_ID}`]
+            }
+            umstell = 12;
+            await dbAction('update', data.args.update_Status_Auftragsposition_grp_Datenquelle)
             toast('Der FA-Status wurde umgestellt!', 'info');
         } else {
             // bei Neustatus == 0 prüfen auf Freigabemuster !!!
             if (data.Gruppe_ID == 35) {
-                args = {
+                /* args = {
                     object_id: 239,
                     values: {
                         'Status': 10
@@ -1011,7 +1202,17 @@ if (data.Start_cond == 1) {
                         'Eintrag': data.Lz_ID
                     }
                 };
-                await promisedUpdateRecord(args);
+                await promisedUpdateRecord(args); */
+
+                data.args.update_Status_Auftragsposition_grp_Datenquelle = {
+                    object_id: data.object_ids.Auftragsposition_grp_Datenquelle,
+                    values: {
+                        Status: 10
+                    },
+                    conditions: [`Eintrag = ${data.Lz_ID}`]
+                }
+                umstell = 10;
+                await dbAction('update', data.args.update_Status_Auftragsposition_grp_Datenquelle)
                 toast('Der FA-Status wurde ERLEDIGT IN ABWICKLUNG umgestellt! (wegen Bereich Freigabemuster)', 'warning', {
                     delay: 0
                 });
@@ -1023,7 +1224,7 @@ if (data.Start_cond == 1) {
 
 
     // Auftrag erledigen prüfen
-    args = {
+/*     args = {
         object_id: 16,
         field_name: 'Count(Eintrag)',
         condition: {
@@ -1032,36 +1233,35 @@ if (data.Start_cond == 1) {
         },
         condition_text: 'Gruppe_ID <> 9'
     };
-    const prom_au_erl = promisedDLookup(args);
-    let look_au_erl = await prom_au_erl;
-    if (parseInt(look_au_erl.DATA) === 0) {
-        args = {
-            object_id: 7,
+    const prom_au_erl = promisedDLookup(args); */
+    // let look_au_erl = await prom_au_erl;
+    data.commands.select_count_Eintrag_Auftragsposition_formular = await dbAcion('select', {
+        object_id: data.object_ids.Auftragsposition_formular,
+        fields: ['Count(Eintrag) as count_Eintrag'],
+        conditions: [`Auftrag_ID = ${data.Auftrag_ID}`, 'Gebucht = 0', 'Grupper_ID <> 9']
+    })
+    if (parseInt(data.commands.select_count_Eintrag_Auftragsposition_formular.DATA) === 0) {
+        data.commands.update_Erledigt_Auftragformular = await dbAcion('update', {
+            object_id: data.object_ids.Auftrag_formular,
             values: {
-                'Erledigt': 1
+                Erledigt: 1
             },
-            condition: {
-                'Eintrag': data.Auftrag_ID
-            }
-        };
-        await promisedUpdateRecord(args);
+            conditions: [`Eintrag =${data.Auftrag_ID}`]
+    });
 
-        writeLog(7, 'Auftrag wurde erledigt, weil ' + look_au_erl.DATA + ' Positionen offen waren!', data.Auftrag_ID);
+        writeLog(7, 'Auftrag wurde erledigt, weil ' + data.commands.select_count_Eintrag_Auftragsposition_formular.DATA + ' Positionen offen waren!', data.Auftrag_ID);
         toast('Auftrag wurde erledigt.', 'info');
 
     } else {
-
         writeLog(7, 'Auftrag wurde nicht erledigt, weil ' + look_au_erl.DATA + ' Positionen offen waren!', data.Auftrag_ID);
         toast('Auftrag wurde nicht erledigt.', 'info');
-
     }
 
-
-
-    writeLog(25, 'Kat1: Lieferschein wurde aus ' + (data.Lz_ID > 0 ? 'FAG ' + data.Lz_ID : 'Auftrag ' + data.Auftrag_ID) + ' erzeugt!', ins_make_ls.DATA);
+    writeLog(25, 'Kat1: Lieferschein wurde aus ' + (data.Lz_ID > 0 ? 'FAG ' + data.Lz_ID : 'Auftrag ' + data.Auftrag_ID) + ' erzeugt!', data.commands.insert_Lieferschein.DATA);
 
     showProgress(100, L('ORDER_IN_PROGRESS', 'macromsgs'));
-    table.ajax.reload();
+    //table.ajax.reload();
+    listReloadHelper();
     if (data.Autom == 1) {
         data.report_filename = 'Lieferschein';
         data.Sprache = 0;
@@ -1069,10 +1269,10 @@ if (data.Start_cond == 1) {
 
         const p_report = promisedCreateReport({
             object_id: data.Report_ID,
-            data_id: ins_make_ls.DATA,
+            data_id: data.commands.insert_Lieferschein.DATA,
             file_name: data.report_filename + (data.Sprache === 0 ? '' : '_en'),
             file_ext: 'tex',
-            output_file_name: 'HTV ' + ins_make_ls.DATA,
+            output_file_name: 'HTV ' + data.commands.insert_Lieferschein.DATA,
             output_format: 'pdf'
         });
 
@@ -1080,14 +1280,14 @@ if (data.Start_cond == 1) {
         data.Report = await p_report; // jshint ignore:line
         if (!data.Report.DATA) {
             toast(no_report, 'error');
-            writeLog(25, 'Lieferscheinausdruck konnte nicht erstellt werden: ' + JSON.stringify(data.Report), ins_make_ls.DATA);
+            writeLog(data.object_ids.LieferscheinERP_Formular, 'Lieferscheinausdruck konnte nicht erstellt werden: ' + JSON.stringify(data.Report), data.commands.insert_Lieferschein.DATA);
         } else {
             window.open(data.Report.file_path.replace('var/www/html/', ''));
         }
     } else {
         open_form({
-            "Object_ID": 25,
-            "Data_ID": ins_make_ls.DATA,
+            "Object_ID": data.object_ids.LieferscheinERP_Formular,
+            "Data_ID": data.commands.insert_Lieferschein.DATA,
             "tab": 1
         });
     }
@@ -1097,7 +1297,7 @@ if (data.Start_cond == 1) {
         displayTime: 0,
         closeIcon: false
     });
-    writeLog(328, 'Verspätete Lieferung bei FAG', data.Lz_ID);
+    writeLog(data.object_idsFertigungsauftrag_formular, 'Verspätete Lieferung bei FAG', data.Lz_ID);
     showProgress(100, L('ORDER_IN_PROGRESS', 'macromsgs'));
     return;
 }
