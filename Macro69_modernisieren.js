@@ -9,29 +9,26 @@ data = {...data,
     PersonFormular: 8
   }
 }
-
-
-    showProgress(20, 'Benutzer wird ermittelt');
-    // get_user_data(procedure_name, data, 'User');
-    data.User = await userAction('info', {
-      simple_answer: true
-    })
+showProgress(20, 'Benutzer wird ermittelt');
+// get_user_data(procedure_name, data, 'User');
+data.User = await userAction('info', {
+    simple_answer: true
+})
 
 if (data.User === false) {
     toast('Fehler beim Ermitteln des Users', 'error');
     showProgress(100);
     return;
 }
-
-    showProgress(40, 'Vertreter Informationen werden geholt');
-    data.args.select_Vertreter_ID_PersonFormular = {
-        object_id: data.ids.PersonFormular,
-        fields: ['Vertreter_ID'],
-        conditions: [`Sys_User_ID = ${data.User['User_ID']}`], 
-    };
-    //dLookup(args, procedure_name, data, 'Vertreter_ID');
-    data.dbAcion.select_Vertreter_ID_PeersonFormular = await dbAction('select', data.args.select_Vertreter_ID_PersonFormular);
-    data.Vertreter_ID = Number(data.dbAcion.select_Vertreter_ID_PersonFormular.DATA[0].Vertreter_ID)
+showProgress(40, 'Vertreter Informationen werden geholt');
+data.args.select_Vertreter_ID_PersonFormular = {
+    object_id: data.ids.PersonFormular,
+    fields: ['Vertreter_ID'],
+    conditions: [`Sys_User_ID = ${data.User['User_ID']}`], 
+};
+//dLookup(args, procedure_name, data, 'Vertreter_ID');
+data.dbAcion.select_Vertreter_ID_PersonFormular = await dbAction('select', data.args.select_Vertreter_ID_PersonFormular);
+data.Vertreter_ID = Number(data.dbAcion.select_Vertreter_ID_PersonFormular.DATA[0].Vertreter_ID)
     
 if (data.Vertreter_ID === false) {
     toast('Fehler beim Ermitteln der Vertreter ID', 'error');
@@ -56,14 +53,6 @@ if (data.dbAcion.select_Name_PersonFormular.STATUS !== 1) {
 if (!data.hasOwnProperty('Jahr_Eingabe')) {
     showProgress(50, 'Benutzereingaben werden abgefragt');
     var current_date = new Date();
-/*     input_value({
-        "header": 'Geben sie das Jahr ein, für dass die Forecastliste erstellt werden soll.',
-        "input": {
-            "type": 'number',
-            "value": current_date.getFullYear()
-        }
-    }, procedure_name, data, 'Jahr_Eingabe');
-    return; */
     data.Jahr_Eingabe = userAction('input', {
       "header": 'Geben sie das Jahr ein, für dass die Forecastliste erstellt werden soll.',
         "input": {
@@ -91,20 +80,22 @@ if (data.Jahr_Eingabe > (current_date.getFullYear() + 1)) {
     showProgress(100);
     return;
 }
-
-if (!data.hasOwnProperty('Quartal_Eingabe')) {
-    var header = 'Wählen sie aus, für welches Quartal eine Forecastliste erstellt werden soll.';
-    var options = {
-        1: "Quartal 1",
-        2: "Quartal 2",
-        3: "Quartal 3",
-        4: "Quartal 4"
-    };
     showProgress(60, 'Benutzereingaben werden abgefragt');
-    
-    select_value(header, options, '*', procedure_name, data, 'Quartal_Eingabe');
-    return;
-}
+
+    data.Quartal_Eingabe = await userAction('select', { //jshint ignore:line
+        header: 'Wählen sie aus, für welches Quartal eine Forecastliste erstellt werden soll.',
+        simple_answer: true,
+        select: {
+            placeholder: 'Status',
+            values: {
+                1: "Quartal 1",
+                2: "Quartal 2",
+                3: "Quartal 3",
+                4: "Quartal 4"
+            }
+        }
+    });
+
 if (data.Quartal_Eingabe === false) {
     toast('Fehler bei der Eingabe des Jahres.', 'error');
     showProgress(100);
@@ -137,10 +128,9 @@ if (data.Choice_Answer === false) {
 }
 if (!data.hasOwnProperty('SP_Values')) {
     showProgress(80, 'Liste wird erstellt');
-    let values = [data.Vertreter_ID,data.Jahr_Eingabe,data.Quartal_Eingabe,10000];
-    get_mssql_spvalues('Forecast_Generieren', values, procedure_name, data, 'SP_Values');
-
-
+    
+   /*  let values = [data.Vertreter_ID,data.Jahr_Eingabe,data.Quartal_Eingabe,10000];
+    get_mssql_spvalues('Forecast_Generieren', values, procedure_name, data, 'SP_Values'); */
     console.log(values);
     console.log(data);
     return;
