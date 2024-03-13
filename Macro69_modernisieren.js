@@ -101,6 +101,7 @@ if (!data.hasOwnProperty('Quartal_Eingabe')) {
         4: "Quartal 4"
     };
     showProgress(60, 'Benutzereingaben werden abgefragt');
+    
     select_value(header, options, '*', procedure_name, data, 'Quartal_Eingabe');
     return;
 }
@@ -138,6 +139,8 @@ if (!data.hasOwnProperty('SP_Values')) {
     showProgress(80, 'Liste wird erstellt');
     let values = [data.Vertreter_ID,data.Jahr_Eingabe,data.Quartal_Eingabe,10000];
     get_mssql_spvalues('Forecast_Generieren', values, procedure_name, data, 'SP_Values');
+
+
     console.log(values);
     console.log(data);
     return;
