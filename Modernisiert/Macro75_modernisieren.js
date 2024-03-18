@@ -2,7 +2,7 @@
  *@author: d.nguyen
  *@description: modernisieren aus dem Macro 75
  *@dates: 13.03.2024 
- *@param: data = {} 
+ *@params: data = {} 
  */
  data = {...data,
     ids: {
@@ -39,7 +39,7 @@ if (parseInt(data.Form_ID) == 50) {
         console.log('Schritt: ' + look_has_step.DATA);
         if (parseInt(look_has_step.DATA.length) === 0) {
             data.commands.select_daten_Vorgaenge = await dbAction('select', {
-                object_id: data.ids.Vorgaenge_Datenquelle,
+                object_id: data.ids.Wartungsschritt_Formular,
                 fields: ['Eintrag', 'Akkret', 'Position', 'Hinweis'], //gibt es keine Akkret und Hinweis in diesem Object
             });
 
@@ -48,24 +48,26 @@ if (parseInt(data.Form_ID) == 50) {
                 values: {
                     PM_ID: data.PM_ID,
                     Vorgang_ID: Number(data.commands.select_daten_Vorgaenge.DATA[0].Eintrag),
-                    Akkret: '%Akkret',
+                    Akkret: data.commands.select_daten_Vorgaenge.DATA[0].Akkret,
                     Position: data.commands.select_daten_Vorgaenge.DATA[0].Position,
-                    Information: '%Hinweis'
+                    Information: data.commands.select_daten_Vorgaenge.DATA[0].Hinweis
                 },
                 conditions: [`Plan_ID = ${data.Plan_ID}]`, `Eintrag = ${open_steps.DATA[v].Eintrag}`, `Position =${open_steps.DATA[v].Position}`]
             });
         }
         if (parseInt(look_has_step.DATA.length) === 1) {
             let select_JOIN_Akkret_Hinweis = await dbAction('select', {
-                object_id: data.ids.Wartungsschritt_Formular,
-                fields: ['Akkret', 'Hinweis'],
+                object_id: data.ids.Wartungsplanvorgang_Formular,
+                fields: {
+                    [data.ids.Wartungsplanvorgang_Formular]: ['Akkret', 'Hinweis'],
+                },
                 join: [
-                    [data.ids.Vorgaenge_Datenquelle, 'Eintrag', data.ids.Wartungsschritt_Formular, 'Vorgang_ID']
+                    [data.ids.Wartungsplanvorgang_Formular, 'Eintrag', data.ids.Wartungsschritt_Formular, 'Vorgang_ID']
                 ],
                 conditions: {
-                    [data.ids.Wartungsschritt_Formular]: [`PM_ID = ${data.PM_ID}`, `Vorgang_ID = ${open_steps.DATA[v].Eintrag}`,
-                        `Position: ${open_steps.DATA[v].Position}`, `Information Is Null Or Information = ''`
-                    ]
+                    [data.ids.Wartungsschritt_Formular]: [`Vorgang_ID = ${open_steps.DATA[v].Eintrag}`, `PM_ID = ${data.PM_ID}`,
+                        `Position = ${open_steps.DATA[v].Position}`, `Information Is Null Or Information = ''`
+                    ],
                 }
             });
             let update_Akkret_Hinweis_Wartungsschritt = await dbAction('update', {

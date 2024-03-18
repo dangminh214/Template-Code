@@ -328,9 +328,6 @@ data.args.select_cond_Anforderung = {
     condition: [`Kunde_ID = ${data.Kunde_ID}`, ` Thema = 'Versandnummer'`, `Old = 0`]
 };
 data.commands.select_cond_Anforderung = await dbAction('select', data.args.select_cond_Anforderung);
-//const prom_cond_anford = promisedDLookup(args);
-
-//const [look_cond_versand, look_cond_anford] = await Promise.all([prom_cond_versand, prom_cond_anford]); // jshint ignore:line
 
 if (data.Start_cond == 1) {
     showProgress(25, 'Lieferschein wird erzeugt');
