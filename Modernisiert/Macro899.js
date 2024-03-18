@@ -29,8 +29,8 @@ data = {...data,
         Bewertung_DQ: 1009
     }
 };
-
-data.KundeID = Number((new URLSearchParams(window.location.href)).get('data_id'));
+data.KundeID = 7844;
+//data.KundeID = Number((new URLSearchParams(window.location.href)).get('data_id'));
 data.neuKundeID = await userAction('remote', {
     header: 'Wählen Sie bitte einen anderen Kunde um die Daten zu verschieben',
     simple_answer: true,
@@ -57,7 +57,13 @@ data.commands.selectFertigungsauftrag = await dbAction('select', {
 data.commands.selectAnforderungen = await dbAction('select', {
     object_id: data.ids.Allgemein_Kufo_Liste,
     fields: ['Eintrag'],
-    conditions: [`AKunde_ID =  ${data.KundeID}`]
+    conditions: [`Kunde_ID =  ${data.KundeID}`]
+});
+
+data.commands.selectKontakte = await dbAction('select', {
+    object_id: data.ids.Kunde_Kontakte_Liste,
+    fields: ['Eintrag'],
+    conditions: [`Kunde_ID =  ${data.KundeID}`]
 });
 
 data.commands.selectBesuche = await dbAction('select', {
@@ -78,187 +84,162 @@ data.commands.selectHistorie = await dbAction('select', {
     conditions: [`Daten_ID =  ${data.KundeID}`, 'Untergruppe LIKE Manuell']
 });
 
+data.commands.selectVertragswerk = await dbAction('select', {
+    object_id: data.ids.KundenvertragswerkHTV_DQ,
+    fields: ['Eintrag'],
+    conditions: [`Kunde_ID = ${data.KundeID}`]
+});
+
+data.commands.selectDateiabhaenge = await dbAction('select', {
+    object_id: data.ids.Archiv_Kunden_DQ,
+    fields: ['Eintrag'],
+    conditions: [`Link_ID = ${data.KundeID}`]
+});
+
 data.commands.selectBewertung = await dbAction('select', {
     object_id: data.ids.Bewertung_DQ,
     fields: ['Eintrag'],
     conditions: [`Kunde_ID =  ${data.KundeID}`]
 });
 
+let check = false;
 
-
-async function checkAuftrag() {
-    if (data.commands.select_Auftrag_von_Kunde.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Aufträge');
-        return true;
-    } else {
-        data.choice_verschiebenAuftrag = await userAction('choice', {
-            header: 'Wollen Sie Fertigungsauftrag verschieben',
-            simple_answe: true,
-        });
-
-        if (data.choice_verschiebenAuftrag) {
-            return true;
-        }
-        else return;
-    }
-}
-
-async function checkFertigungsauftrag() {
-    if (data.commands.selectFertigungsauftrag.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Fertigungsaufträge');
-        return true;
-    } else {
-        data.choice_verschiebenFertigungsauftrag = await userAction('choice', {
-            header: 'Wollen Sie Fertigungsaufträge verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenFertigungsauftrag) {
-            return true;
-        }
-        else return false;
-    }    
-}
-
-async function checkAnforderung() {
-    if (data.commands.selectAnforderungen.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Anforderungen');
-        return true;
-    } else {
-        data.choice_verschiebenDaten = await userAction('choice', {
-            header: 'Wollen Sie Anforderungen verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenDaten) {
-            return true;
-        }
-        else return false;
-    }
-}
-
-async function checkKontakte() {
-    data.commands.selectKontakte = await dbAction('select', {
-        object_id: data.ids.Kunde_Kontakte_Liste,
-        fields: ['Eintrag'],
-        conditions: [`Kunde_ID =  ${data.KundeID}`]
+if (data.commands.select_Auftrag_von_Kunde.DATA.length <= 0) {
+    check = true;
+} else {
+    data.choice_verschiebenAuftrag = await userAction('choice', {
+        header: 'Wollen Sie Fertigungsauftrag verschieben',
+        simple_answe: true,
     });
-    
-    if (data.commands.selectKontakte.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Kontakte');
-        return true;
-    } else {
-        data.choice_verschiebenKontakte = await userAction('choice', {
-            header: 'Wollen Sie Kontakte verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenKontakte) {
-            return true;
-        }
-        else return false;
-    }
-}
 
-async function checkBesuche() {    
-    if (data.commands.selectBesuche.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Besuche');
-        return true;
-    } else {
-        data.choice_verschiebenBesuche = await userAction('choice', {
-            header: 'Wollen Sie Besuche von diesem Kunde verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenBesuche) {
-            return true;
-        }
-        else return false;
-    }
-}
-
-async function checkHistorie() {
-    if (data.commands.selectHistorie.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Historie');
-        return true;
-    } else {
-        data.choice_verschiebenDaten = await userAction('choice', {
-            header: 'Wollen Sie Historie von diesem Kunde verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenDaten) {
-            return true;
-        }
-        else return false;
-    }
-}
-
-async function checkGeschenke() {
-    if (data.commands.selectGeschenke.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Geschenke');
-        return true;
-    } else {
-        data.choice_verschiebenDaten = await userAction('choice', {
-            header: 'Wollen Sie die Geschenke von diesem Kunde verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenDaten) {
-            return true;
-        }
-        else return false;
-    }
-}
-
-async function checkBewertung() {
-    if (data.commands.selectDateiabhaenge.DATA.length <= 0) {
-        toast('Diese Kunde hat keine Bewertung');
-        return true;
-    } else {
-        data.choice_verschiebenDaten = await userAction('choice', {
-            header: 'Wollen Sie die Bewertungen von diesem Kunde verschieben',
-            simple_answe: true,
-        });
-        if (data.choice_verschiebenDaten) {
-            return true;
-        }
-        else return false;
-    }
-}
-
-let bedingung = false;
-if (checkAuftrag()) {
-    if (checkFertigungsauftrag()) {
-        if (checkAnforderung()) {
-            if (checkAnforderung()) {
-                if (checkKontakte()) {
-                    if (checkBesuche()) {
-                        if (checkHistorie()) {
-                            if (checkGeschenke()) {
-                                if (checkBewertung()) {
-                                    bedingung = true;
+    if (data.choice_verschiebenAuftrag.DATA == true) {
+        if (data.commands.selectFertigungsauftrag.DATA.length <= 0) {
+            check = true;
+        } else {
+            data.choice_verschiebenFertigungsauftrag = await userAction('choice', {
+                header: 'Wollen Sie Fertigungsaufträge verschieben',
+                simple_answe: true,
+            });
+            if (data.choice_verschiebenFertigungsauftrag.DATA == true) {
+                if (data.commands.selectAnforderungen.DATA.length <= 0) {
+                    check = true;
+                } else {
+                    data.choice_verschiebenAnforderung = await userAction('choice', {
+                        header: 'Wollen Sie Anforderungen verschieben',
+                        simple_answe: true,
+                    });
+                    if (data.choice_verschiebenAnforderung.DATA == true) {
+                        if (data.commands.selectKontakte.DATA.length <= 0) {
+                            check = true;
+                        } else {
+                            data.choice_verschiebenKontakte = await userAction('choice', {
+                                header: 'Wollen Sie Kontakte verschieben',
+                                simple_answe: true,
+                            });
+                            if (data.choice_verschiebenKontakte.DATA == true) {
+                                if (data.commands.selectBesuche.DATA.length <= 0) {
+                                    check = true;
+                                } else {
+                                    data.choice_verschiebenBesuche = await userAction('choice', {
+                                        header: 'Wollen Sie Besuche von diesem Kunde verschieben',
+                                        simple_answe: true,
+                                    });
+                                    if (data.choice_verschiebenBesuche.DATA == true) {
+                                        check = true;
+                                        if (data.commands.selectHistorie.DATA.length <= 0) {
+                                            check = true;
+                                        } else {
+                                            data.choice_verschiebenHistorie = await userAction('choice', {
+                                                header: 'Wollen Sie Historie von diesem Kunde verschieben',
+                                                simple_answe: true,
+                                            });
+                                            if (data.choice_verschiebenHistorie.DATA == true) {
+                                                if (data.commands.selectGeschenke.DATA.length <= 0) {
+                                                    check = true;
+                                                } else {
+                                                    data.choice_verschiebenGeschenke = await userAction('choice', {
+                                                        header: 'Wollen Sie die Geschenke von diesem Kunde verschieben',
+                                                        simple_answe: true,
+                                                    });
+                                                    if (data.choice_verschiebenGeschenke.DATA == true) {
+                                                        if (data.commands.selectVertragswerk.DATA.length <= 0) {
+                                                            check = true;
+                                                        } else {
+                                                            data.choice_verschiebenVertragswerk = await userAction('choice', {
+                                                                header: 'Wollen Sie die Geschenke von diesem Kunde verschieben',
+                                                                simple_answe: true,
+                                                            });
+                                                            if (data.choice_verschiebenVertragswerk.DATA == true) {
+                                                                if (data.commands.selectDateiabhaenge.DATA.length <= 0) {
+                                                                    check = true;
+                                                                } else {
+                                                                    data.choice_verschiebenDateianhaengen = await userAction('choice', {
+                                                                        header: 'Wollen Sie die Geschenke von diesem Kunde verschieben',
+                                                                        simple_answe: true,
+                                                                    });
+                                                                    if (data.choice_verschiebenDateianhaengen.DATA == true) {
+                                                                        if (data.commands.selectDateiabhaenge.DATA.length <= 0) {
+                                                                            check = true;
+                                                                        } else {
+                                                                            data.choice_verschiebenBewertung = await userAction('choice', {
+                                                                                header: 'Wollen Sie die Bewertungen von diesem Kunde verschieben',
+                                                                                simple_answe: true,
+                                                                            });
+                                                                            if (data.choice_verschiebenBewertung.DATA == true || check == true) {
+                                                                                check = true;
+                                                                                console.log(check);
+                                                                            } else {
+                                                                                return;
+                                                                            }
+                                                                        }
+                                                                    } else {
+                                                                        return;
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                return;
+                                                            }
+                                                        }
+                                                    } else {
+                                                        return;
+                                                    }
+                                                }
+                                            } else {
+                                                return;
+                                            }
+                                        }
+                                    } else {
+                                        return;
+                                    }
                                 }
-                                else return;
+                            } else {
+                                return;
                             }
-                            else return;
                         }
-                        else return;
+                    } else {
+                        return;
                     }
-                    else return;
                 }
-                else return;
+            } else {
+                return;
             }
-            else return;
         }
-        else return
+    } else {
+        return;
     }
-    else return 
-} 
-else return;
+}
 
-if (bedingung === true) {
+console.log('select data und abfragen', data);
+console.log(data);
+showProgress(60, 'Aktualisieren die Daten');
+if (check === true) {
     for (let i in data.commands.select_Auftrag_von_Kunde.DATA) {
         data.commands.update_Auftrag = await dbAction('update', {
             object_id: data.ids.Auftrag_Formular,
             values: {
                 Kunde_ID: data.neuKundeID
             },
-            conditions: [`Eintrag = ${data.commands.select_Auftrag_von_Kunde.DATA[i].Eintrag}`, `Mandant_ID = ${data.MandantID}`]
+            conditions: [`Eintrag = ${data.commands.select_Auftrag_von_Kunde.DATA[i].Eintrag}`, `Mandant_ID = ${data.ids.MandantID}`]
         });
     }
     for (let i in data.commands.selectFertigungsauftrag.DATA) {
@@ -274,7 +255,7 @@ if (bedingung === true) {
         data.commands.update_Anforderungen = await dbAction('update', {
             object_id: data.ids.Anforderungen_tab_DQ,
             values: {
-                AKunde_ID: data.neuKundeID
+                Kunde_ID: data.neuKundeID
             },
             conditions: [`Eintrag = ${data.commands.selectAnforderungen.DATA[i].Eintrag}`]
         });
@@ -315,8 +296,29 @@ if (bedingung === true) {
             conditions: [`Eintrag = ${data.commands.selectGeschenke.DATA[i].Eintrag}`]
         });
     }
+
+    for (let i in data.commands.selectVertragswerk.DATA) {
+        data.commands.updateVertragswerke = await dbAction('update', {
+            object_id: data.ids.KundenvertragswerkHTV_DQ,
+            values: {
+                Kunde_ID: data.neuKundeID
+            },
+            conditions: [`Eintrag = ${data.commands.selectVertragswerk.DATA[i].Eintrag}`]
+        });
+    }
+
     for (let i in data.commands.selectDateiabhaenge.DATA) {
         data.commands.updateDateiabhaenge = await dbAction('update', {
+            object_id: data.ids.Archiv_Kunden_DQ,
+            values: {
+                Link_ID: data.neuKundeID
+            },
+            conditions: [`Eintrag = ${data.commands.selectDateiabhaenge.DATA[i].Eintrag}`]
+        });
+    }
+
+    for (let i in data.commands.selectBewertung.DATA) {
+        data.commands.updateBewertung = await dbAction('update', {
             object_id: data.ids.Bewertung_DQ,
             values: {
                 Kunde_ID: data.neuKundeID
@@ -324,9 +326,26 @@ if (bedingung === true) {
             conditions: [`Eintrag = ${data.commands.selectBewertung.DATA[i].Eintrag}`]
         });
     }
-    
+
+    data.commands.choice_deleteKunde = await userAction('CHOICE', {
+        header: 'Die Daten wurden verschoben, soll dieser Kunde gelöscht werden ?',
+        simple_answe: true,
+    });
+
+    if (data.commands.choice_deleteKunde.DATA == 1) {
+        data.commands.deleteUser = await dbAction('DELETE', {
+            object_id: data.ids.Kunde_DB,
+            conditions: [`Eintrag = ${data.KundeID}`]
+        });
+
+        if (data.commands.deleteUser.STATUS === 1) {
+            console.log('after update: ', data);
+            showProgress(100, 'Der Kunde wurde erfolgreich gelöscht');
+        } else {
+            toast('Fehler beim Löschen dieses Kundes', 'error');
+            return;
+        }
+    } else {
+        toast('Die Daten wurden verschoben und dieser Kunde wurde nicht ausgelöscht', 'warning');
+    }
 }
-
-
-
-
