@@ -31,7 +31,7 @@ data = {...data,
 };
 
 data.KundeID = Number((new URLSearchParams(window.location.href)).get('data_id'));
-data.neuKundeID = userAction('remote', {
+data.neuKundeID = await userAction('remote', {
     header: 'Wählen Sie bitte einen anderen Kunde um die Daten zu verschieben',
     simple_answer: true,
     remote: {
